@@ -1,41 +1,25 @@
-# Core app framework
 streamlit>=1.37.0
-flask>=2.3
-
-# Data science & ML
+opencv-python-headless==4.6.0.66  # Ensure headless version is installed
+scikit-learn>=1.2
 pandas>=1.5
 numpy>=1.23
-scikit-learn>=1.2
-xgboost>=1.7
-umap-learn>=0.5.7
-joblib>=1.2
-
-# Visualization
-matplotlib>=3.6
 seaborn>=0.12
-
-# Audio processing
+matplotlib>=3.6
 librosa>=0.10
 soundfile>=0.12
 openai-whisper
-
-# Image & video processing
-opencv-python-headless>=4.6
 mediapipe>=0.10
 imutils>=0.5
 PyWavelets>=1.4
+joblib>=1.2
+PyYAML>=6.0
+face-alignment
+torch
+torchvision
 scikit-image
 imageio
 imageio-ffmpeg
 
-# Deep learning & face processing
-torch
-torchvision
-face-alignment
-
-# Misc utilities
-pandasai>=1.3
-PyYAML>=6.0
 
 
 
