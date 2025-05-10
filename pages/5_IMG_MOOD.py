@@ -51,10 +51,14 @@ def detect_eyes_mediapipe(image):
     results = face_mesh.process(image_rgb)
     if not results.multi_face_landmarks:
         return None, None
+
     face_landmarks = results.multi_face_landmarks[0]
-    left_eye = (face_landmarks.landmark[33].x * image.shape[1], face_landmarks.landmark[33].y * image.shape[0])
-    right_eye = (face_landmarks.landmark[263].x * image.shape[1], face_landmarks.landmark[263].y * image.shape[0])
+    left_eye = (face_landmarks.landmark[33].x * image.shape[1],
+                face_landmarks.landmark[33].y * image.shape[0])
+    right_eye = (face_landmarks.landmark[263].x * image.shape[1],
+                 face_landmarks.landmark[263].y * image.shape[0])
     return left_eye, right_eye
+
 
 def preprocess(images):
     normalized_faces = []
