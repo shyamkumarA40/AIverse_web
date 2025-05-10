@@ -5,7 +5,6 @@ import pywt
 import os
 import math
 import mediapipe as mp
-import torch
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
@@ -21,32 +20,6 @@ expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise
 # Initialize MediaPipe FaceMesh for face detection
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-
-def read_data(dir_path):
-    img_data_list = []
-    labels = []
-    img_list = os.listdir(dir_path)
-    
-    # Debugging: Check number of images in the dataset
-    print(f"Number of images in the dataset: {len(img_list)}")
-    
-    for img in img_list:
-        input_img = cv2.imread(os.path.join(dir_path, img), cv2.IMREAD_GRAYSCALE)
-        if input_img is None:
-            continue
-        img_data_list.append(input_img)
-        label = img[3:5]
-        labels.append(expres_code.index(label))
-    return np.array(img_data_list), labels
-
-def angle_line_x_axis(point1, point2):
-    angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
-    return angle_r * 180 / math.pi
-
-def rotate_image(image, angle):
-    image_center = tuple(np.array(image.shape[1::-1]) / 2)
-    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-    return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
 def detect_eyes_mediapipe(image):
     # Convert image to RGB for MediaPipe
@@ -88,14 +61,21 @@ def preprocess(images):
     print(f"Number of valid faces after preprocessing: {len(normalized_faces)}")  # Debugging statement
     return normalized_faces
 
+def angle_line_x_axis(point1, point2):
+    angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
+    return angle_r * 180 / math.pi
+
+def rotate_image(image, angle):
+    image_center = tuple(np.array(image.shape[1::-1]) / 2)
+    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+    return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+
 def apply_wavelet_transform(images):
     transformed = [pywt.dwt2(img, 'bior1.3')[0] for img in images]
-    print(f"Number of images after wavelet transform: {len(transformed)}")  # Debugging statement
     return transformed
 
 def from_2d_to_1d(images):
     reshaped_images = np.array([img.reshape(-1) for img in images])
-    print(f"Shape of reshaped images: {reshaped_images.shape}")  # Debugging statement
     return reshaped_images
 
 # Streamlit UI
@@ -124,8 +104,6 @@ def load_model():
     
     if X_flat.size == 0:
         raise ValueError("X_flat is empty. Something went wrong during preprocessing.")
-    
-    print(f"Shape of X_flat: {X_flat.shape}")
     
     # Scaling and PCA
     scaler = StandardScaler().fit(X_flat)
@@ -163,6 +141,7 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
