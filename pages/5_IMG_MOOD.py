@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-# JAFFE dataset directory
+# JAFFE dataset directory (Make sure the path is correct)
 JAFFE_DIR_PATH = "jaffedbase/jaffe/"
 
 # Expression labels
@@ -26,9 +26,12 @@ def read_data(dir_path):
     img_data_list = []
     labels = []
     img_list = os.listdir(dir_path)
+    if len(img_list) == 0:
+        raise FileNotFoundError(f"No images found in the directory: {dir_path}")
     for img in img_list:
         input_img = cv2.imread(os.path.join(dir_path, img), cv2.IMREAD_GRAYSCALE)
         if input_img is None:
+            print(f"Skipping invalid image {img}.")
             continue
         img_data_list.append(input_img)
         label = img[3:5]
@@ -112,7 +115,11 @@ uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=[
 @st.cache_resource
 def load_model():
     """Loads the model and performs training."""
-    X, Y = read_data(JAFFE_DIR_PATH)
+    try:
+        X, Y = read_data(JAFFE_DIR_PATH)
+    except FileNotFoundError as e:
+        st.error(str(e))
+        return None, None, None
     
     if not X.size:
         raise ValueError("No valid images loaded. Please check the dataset.")
@@ -168,6 +175,7 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
