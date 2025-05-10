@@ -1,6 +1,6 @@
 import streamlit as st
 import cv2
-import dlib
+import mediapipe as mp
 import numpy as np
 import pywt
 import os
@@ -13,16 +13,24 @@ from sklearn.preprocessing import StandardScaler
 import joblib
 
 # Paths
-MODEL_PATH = "shape_predictor_68_face_landmarks.dat"
+MODEL_PATH = "shape_predictor_68_face_landmarks.dat"  # No longer needed as we are using mediapipe
 JAFFE_DIR_PATH = "jaffedbase/jaffe/"
-
-# Load Dlib models
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor(MODEL_PATH)
 
 # Expressions
 expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
+
+# Mediapipe setup
+mp_face_mesh = mp.solutions.face_mesh
+mp_drawing = mp.solutions.drawing_utils
+
+# Initialize mediapipe Face Mesh model
+face_mesh = mp_face_mesh.FaceMesh(
+    static_image_mode=False,
+    max_num_faces=1,  # You can adjust this if you want to detect multiple faces
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 
 # Utility Functions
 def read_data(dir_path):
@@ -48,14 +56,26 @@ def angle_line_x_axis(point1, point2):
     return angle_r * 180 / math.pi
 
 def detect_eyes(gray):
-    rects = detector(gray, 1)
-    for rect in rects:
-        shape = predictor(gray, rect)
-        shape = face_utils.shape_to_np(shape)
-        left_eye_center = np.mean(shape[42:48], axis=0).astype("int")
-        right_eye_center = np.mean(shape[36:42], axis=0).astype("int")
-        return left_eye_center, right_eye_center
-    return None, None
+    # Convert to RGB for mediapipe processing
+    rgb_image = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+    results = face_mesh.process(rgb_image)
+    
+    left_eye_center = None
+    right_eye_center = None
+    
+    if results.multi_face_landmarks:
+        # For the first face, get the landmarks
+        face_landmarks = results.multi_face_landmarks[0]
+        
+        # Extract the eye points (indices 33 to 133 for left eye, 133 to 233 for right eye)
+        left_eye = face_landmarks.landmark[33:133]  # Left eye landmarks
+        right_eye = face_landmarks.landmark[133:233]  # Right eye landmarks
+        
+        # Get the mean positions of the eyes
+        left_eye_center = np.mean([(point.x, point.y) for point in left_eye], axis=0)
+        right_eye_center = np.mean([(point.x, point.y) for point in right_eye], axis=0)
+
+    return left_eye_center, right_eye_center
 
 def preprocess(images):
     normalized_faces = []
@@ -126,3 +146,4 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
