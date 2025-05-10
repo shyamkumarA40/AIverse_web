@@ -26,6 +26,10 @@ def read_data(dir_path):
     img_data_list = []
     labels = []
     img_list = os.listdir(dir_path)
+    
+    # Debugging: Check number of images in the dataset
+    print(f"Number of images in the dataset: {len(img_list)}")
+    
     for img in img_list:
         input_img = cv2.imread(os.path.join(dir_path, img), cv2.IMREAD_GRAYSCALE)
         if input_img is None:
@@ -69,20 +73,27 @@ def preprocess(images):
         x, y = int(center[0] - (0.9 * D)), int(center[1] - (0.6 * D))
         w, h = int(1.8 * D), int(2.2 * D)
         face_roi = rotated_img[y:y + h, x:x + w]
+        
+        # Debugging: Check if the face region is valid
         if face_roi.shape[0] == 0 or face_roi.shape[1] == 0:
+            print("Invalid face region detected.")
             continue
+        
         face_roi = cv2.resize(face_roi, (96, 128))
         face_roi = cv2.equalizeHist(face_roi)
         normalized_faces.append(face_roi)
+    
+    print(f"Number of valid faces after preprocessing: {len(normalized_faces)}")  # Debugging statement
     return normalized_faces
 
 def apply_wavelet_transform(images):
-    return [pywt.dwt2(img, 'bior1.3')[0] for img in images]
+    transformed = [pywt.dwt2(img, 'bior1.3')[0] for img in images]
+    print(f"Number of images after wavelet transform: {len(transformed)}")  # Debugging statement
+    return transformed
 
 def from_2d_to_1d(images):
-    # Ensure this returns a 2D array (n_samples, n_features)
     reshaped_images = np.array([img.reshape(-1) for img in images])
-    print(f"Shape of reshaped images: {reshaped_images.shape}")
+    print(f"Shape of reshaped images: {reshaped_images.shape}")  # Debugging statement
     return reshaped_images
 
 # Streamlit UI
@@ -93,11 +104,22 @@ uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=[
 @st.cache_resource
 def load_model():
     X, Y = read_data(JAFFE_DIR_PATH)
+    
+    if not X.size:
+        raise ValueError("No valid images loaded. Please check the dataset.")
+    
     cropped_X = preprocess(X)
+    
+    if not cropped_X:
+        raise ValueError("No valid faces detected. Please check the preprocessing steps.")
+    
     LL_images = apply_wavelet_transform(cropped_X)
+    
+    if not LL_images:
+        raise ValueError("Wavelet transformation resulted in no valid images.")
+    
     X_flat = from_2d_to_1d(LL_images)
     
-    # Check if X_flat has the right shape
     if X_flat.size == 0:
         raise ValueError("X_flat is empty. Something went wrong during preprocessing.")
     
@@ -118,7 +140,10 @@ def load_model():
     
     return model, scaler, pca
 
-model, scaler, pca = load_model()
+try:
+    model, scaler, pca = load_model()
+except Exception as e:
+    st.exception(f"Error loading model: {e}")
 
 if uploaded_file is not None:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
@@ -132,14 +157,11 @@ if uploaded_file is not None:
         face = processed_faces[0]
         LL = apply_wavelet_transform([face])[0]
         flat = from_2d_to_1d([LL])
-        
-        if flat.size == 0:
-            st.warning("Unable to flatten the image properly.")
-        else:
-            flat_scaled = scaler.transform(flat)
-            flat_pca = pca.transform(flat_scaled)
-            pred = model.predict(flat_pca)
-            st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+        flat_scaled = scaler.transform(flat)
+        flat_pca = pca.transform(flat_scaled)
+        pred = model.predict(flat_pca)
+        st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
