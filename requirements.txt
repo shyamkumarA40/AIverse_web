@@ -21,5 +21,10 @@ PyYAML>=6.0
 face-alignment
 torch
 torchvision
+face-alignment
+scikit-image
+imageio
+imageio-ffmpeg
+
 
 
