@@ -16,3 +16,4 @@ mediapipe
 imutils
 pywavelets
 joblib
+yaml
