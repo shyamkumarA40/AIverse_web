@@ -112,7 +112,7 @@ if uploaded_file is not None:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     gray_img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
 
-    st.image(gray_img, caption="Uploaded Image", use_column_width=True, channels="GRAY")
+    st.image(gray_img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
 
     processed_faces = preprocess([gray_img])
     if not processed_faces:
