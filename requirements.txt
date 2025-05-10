@@ -17,5 +17,6 @@ imutils>=0.5
 PyWavelets>=1.4
 joblib>=1.2
 PyYAML>=6.0
+opencv-python-headless>=4.6
 
 
