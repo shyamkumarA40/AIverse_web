@@ -20,7 +20,8 @@ soundfile>=0.12
 openai-whisper
 
 # Image & video processing
-opencv-python-headless>=4.6   # headless version to avoid GUI dependency
+opencv-python-headless>=4.6
+# headless version to avoid GUI dependency
 mediapipe>=0.10
 imutils>=0.5
 PyWavelets>=1.4
