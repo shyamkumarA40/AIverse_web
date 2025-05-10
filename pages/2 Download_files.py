@@ -1,10 +1,65 @@
 import streamlit as st
 import pandas as pd
-from PIL import Image
-
+import streamlit.components.v1 as components
 
 # ---- App Config ----
 st.set_page_config(page_title="AIverse Home", layout="centered")
+
+# === CUSTOM STYLING ===
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+html, body, .stApp {
+    background: linear-gradient(to right, #fddb92, #d1fdff);
+    background-attachment: fixed;
+    background-size: cover;
+    color: #2c3e50 !important;
+    font-family: 'Segoe UI', sans-serif !important;
+}
+.highlight {
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    color: white;
+    padding: 2rem;
+    border-radius: 16px;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+.highlight h1 {
+    font-size: 2.6rem;
+    margin: 0;
+}
+.data-box {
+    background-color: #ffffff;
+    padding: 1.5rem;
+    border: 2px dashed #1abc9c;
+    border-radius: 12px;
+    text-align: center;
+    color: #2c3e50;
+    margin-top: 1rem;
+}
+section[data-testid="stSidebar"] {
+    background-color: #0a0a12 !important;
+    border-right: 2px solid #222;
+    box-shadow: 4px 0 25px rgba(245, 0, 255, 0.5);
+    padding: 2rem 1rem 2rem 1rem;
+    font-family: 'Orbitron', sans-serif !important;
+}
+section[data-testid="stSidebar"] * {
+    font-family: 'Orbitron', sans-serif !important;
+    color: #f500ff !important;
+    font-size: 16px !important;
+    text-shadow: 0 0 3px #f500ff;
+}
+section[data-testid="stSidebar"] a {
+    color: #00f7ff !important;
+    text-shadow: 0 0 4px #00f7ff;
+}
+section[data-testid="stSidebar"] a:hover {
+    color: #f500ff !important;
+    text-shadow: 0 0 8px #f500ff;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---- Dummy Login Credentials ----
 USERNAME = "admin"
@@ -13,119 +68,91 @@ PASSWORD = "1234"
 # ---- Session State for Login ----
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+
 # ---- Login Form ----
 def login_form():
-    st.markdown("## 🔐 Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
+    st.markdown("## 🔐 Login to <span style='color:#f500ff;'>AIverse</span>", unsafe_allow_html=True)
+    username = st.text_input("👤 Username")
+    password = st.text_input("🔒 Password", type="password")
+    if st.button("💡 Enter"):
         if username == USERNAME and password == PASSWORD:
             st.session_state.authenticated = True
+            play_login_sound()
             st.rerun()
         else:
-            st.error("Invalid credentials")
-
+            st.error("❌ Invalid credentials")
 
 # ---- Sidebar UI ----
 def sidebar_ui():
     st.sidebar.markdown("""
-        <h1 style='color: #00c3ff; font-family: "Trebuchet MS", sans-serif; font-size: 42px; margin-bottom: 10px;'>
-            🌌 AIverse
+        <h1 style='color: #f500ff; font-family: Orbitron, sans-serif; font-size: 42px; text-shadow: 0 0 15px #f500ff;'>
+            ⚡ AIverse
         </h1>
-        <hr style='border: 1px solid #444;' />
+        <hr style='border: 1px solid #f500ff;' />
     """, unsafe_allow_html=True)
 
-    # --- Contact Us section ---
-    st.sidebar.markdown(
-        """
+    st.sidebar.markdown("""
         <br><strong>📞 Contact us</strong><br>
-        <a href="https://discord.gg/jNMxQ2Qx" target="_blank"><img src="https://img.icons8.com/color/32/000000/discord--v2.png"/></a>
-        <a href="https://twitter.com" target="_blank"><img src="https://img.icons8.com/color/32/000000/twitter--v1.png"/></a>
-        <a href="https://www.instagram.com/ai_verse911/" target="_blank"><img src="https://img.icons8.com/color/32/000000/instagram-new--v1.png"/></a>
-        <a href="https://t.me/skbytes" target="_blank"><img src="https://img.icons8.com/color/32/000000/telegram-app--v1.png"/></a>
-        """,
-        unsafe_allow_html=True
-    )
+        <a href="https://discord.gg/jNMxQ2Qx" target="_blank"><img src="https://img.icons8.com/color/32/discord--v2.png"/></a>
+        <a href="https://twitter.com" target="_blank"><img src="https://img.icons8.com/color/32/twitter--v1.png"/></a>
+        <a href="https://www.instagram.com/ai_verse911/" target="_blank"><img src="https://img.icons8.com/color/32/instagram-new--v1.png"/></a>
+        <a href="https://t.me/skbytes" target="_blank"><img src="https://img.icons8.com/color/32/telegram-app--v1.png"/></a>
+    """, unsafe_allow_html=True)
+# ---- Cyberpunk Spinner ----
+st.markdown("""
+    <style>
+    .loader {
+        border: 6px solid #1c1f26;
+        border-top: 6px solid #f500ff;
+        border-right: 6px solid #00f7ff;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 1s linear infinite;
+        margin: 40px auto;
+    }
 
-    # Spacer
-    st.sidebar.markdown("<div style='height:30px;'></div>", unsafe_allow_html=True)
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # ---- Main Flow ----
 if st.session_state.authenticated:
     sidebar_ui()
-    st.title("🏠 Welcome to AIverse")
-    st.write("Use the sidebar to explore different tools.")
-
-    st.title('Download button')
-
-    st.title('📥 Download CSV Files')
+    st.markdown("<h1>👾 Welcome to <span style='color:#f500ff;'>AIverse</span></h1>", unsafe_allow_html=True)
+    st.markdown("### 📥 Download Datasets")
 
     @st.cache_data
     def data_read(data):
         return data.to_csv(index=False).encode('utf-8')
 
-    # BMI CSV
-    data_bmi = pd.read_csv('Dataset/bmi.csv')
-    csv_bmi = data_read(data_bmi)
-    st.download_button("Download BMI CSV", data=csv_bmi, file_name="bmi.csv", mime="text/csv")
+    dataset_files = {
+        "BMI CSV": "bmi.csv",
+        "American Bankruptcy CSV": "american_bankruptcy (1).csv",
+        "Diabetes Prediction CSV": "diabetes_prediction_dataset.csv",
+        "GSPC Latest SNP CSV": "GSPC latest snp.csv",
+        "Heart CSV": "heart.csv",
+        "House Price Prediction CSV": "House Price Prediction Dataset.csv",
+        "Loan Data CSV": "loan_data.csv",
+        "OOF Predictions CSV": "oof_predss.csv",
+        "Openings CSV": "openings.csv",
+        "Openings FEN7 CSV": "openings_fen7.csv",
+        "Student Performance CSV": "Student_performance_10k.csv",
+        "Titanic Passengers CSV": "titanic-passengers.csv",
+    }
 
-    # American Bankruptcy
-    data_bankruptcy = pd.read_csv('Dataset/american_bankruptcy (1).csv')
-    csv_bankruptcy = data_read(data_bankruptcy)
-    st.download_button("Download American Bankruptcy CSV", data=csv_bankruptcy, file_name="american_bankruptcy.csv", mime="text/csv")
-
-    # Diabetes Prediction
-    data_diabetes = pd.read_csv('Dataset/diabetes_prediction_dataset.csv')
-    csv_diabetes = data_read(data_diabetes)
-    st.download_button("Download Diabetes Prediction CSV", data=csv_diabetes, file_name="diabetes_prediction_dataset.csv", mime="text/csv")
-
-    # GSPC Latest SNP
-    data_gspc = pd.read_csv('Dataset/GSPC latest snp.csv')
-    csv_gspc = data_read(data_gspc)
-    st.download_button("Download GSPC Latest SNP CSV", data=csv_gspc, file_name="GSPC_latest_snp.csv", mime="text/csv")
-
-    # Heart
-    data_heart = pd.read_csv('Dataset/heart.csv')
-    csv_heart = data_read(data_heart)
-    st.download_button("Download Heart CSV", data=csv_heart, file_name="heart.csv", mime="text/csv")
-
-    # House Price Prediction
-    data_house = pd.read_csv('Dataset/House Price Prediction Dataset.csv')
-    csv_house = data_read(data_house)
-    st.download_button("Download House Price Prediction CSV", data=csv_house, file_name="House_Price_Prediction_Dataset.csv", mime="text/csv")
-
-    # Loan Data
-    data_loan = pd.read_csv('Dataset/loan_data.csv')
-    csv_loan = data_read(data_loan)
-    st.download_button("Download Loan Data CSV", data=csv_loan, file_name="loan_data.csv", mime="text/csv")
-
-    # OOF Predictions
-    data_oof = pd.read_csv('Dataset/oof_predss.csv')
-    csv_oof = data_read(data_oof)
-    st.download_button("Download OOF Predictions CSV", data=csv_oof, file_name="oof_predss.csv", mime="text/csv")
-
-    # Openings
-    data_openings = pd.read_csv('Dataset/openings.csv')
-    csv_openings = data_read(data_openings)
-    st.download_button("Download Openings CSV", data=csv_openings, file_name="openings.csv", mime="text/csv")
-
-    # Openings FEN7
-    data_openings_fen7 = pd.read_csv('Dataset/openings_fen7.csv')
-    csv_openings_fen7 = data_read(data_openings_fen7)
-    st.download_button("Download Openings FEN7 CSV", data=csv_openings_fen7, file_name="openings_fen7.csv", mime="text/csv")
-
-    # Student Performance
-    data_student = pd.read_csv('Dataset/Student_performance_10k.csv')
-    csv_student = data_read(data_student)
-    st.download_button("Download Student Performance CSV", data=csv_student, file_name="Student_performance_10k.csv", mime="text/csv")
-
-    # Titanic Passengers
-    data_titanic = pd.read_csv('Dataset/titanic-passengers.csv')
-    csv_titanic = data_read(data_titanic)
-    st.download_button("Download Titanic Passengers CSV", data=csv_titanic, file_name="titanic-passengers.csv", mime="text/csv")
+    for label, filename in dataset_files.items():
+        try:
+            df = pd.read_csv(f"Dataset/{filename}")
+            csv = data_read(df)
+            st.download_button(f"⬇️ {label}", data=csv, file_name=filename, mime="text/csv")
+        except FileNotFoundError:
+            st.warning(f"⚠️ File not found: {filename}")
 
 else:
-    # Hide sidebar with empty container
     st.markdown("""
         <style>
         [data-testid="stSidebar"] { display: none; }
