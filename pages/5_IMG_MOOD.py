@@ -19,7 +19,7 @@ expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
 
 # Load face alignment model
-fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, device='cuda' if torch.cuda.is_available() else 'cpu')
+fa = face_alignment.FaceAlignment('2D', device='cuda' if torch.cuda.is_available() else 'cpu')
 
 def read_data(dir_path):
     img_data_list = []
