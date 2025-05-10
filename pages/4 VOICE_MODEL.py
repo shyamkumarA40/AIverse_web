@@ -11,79 +11,126 @@ from utils.model_training import load_dataset, train_models
 from utils.prediction import predict
 
 # --- Streamlit Page Configuration ---
-st.set_page_config(page_title="AI Voice Insight System", layout="wide", page_icon="🎧")
-
-# --- Combined Global and Custom CSS Styling ---
+st.set_page_config(page_title="AI Voice Insight System", page_icon="🎧")
 st.markdown("""
-    <style>
-        html, body, [class*="css"]  {
-            font-family: 'Segoe UI', sans-serif;
-            font-size: 16px;
-            background-color: #F5F5F5;
-        }
-        .stApp {
-            background-color: #0a0f1c;
-            color: #e0f7fa;
-        }
-        .stFileUploader, .stAudio, .stMarkdown {
-            font-size: 18px;
-        }
-        .stButton, .stCheckbox {
-            font-size: 14px;
-        }
-        .custom-box {
-            font-size: 20px;
-            padding: 1px;
-            background-color: #212121;
-            border-radius: 5px;
-        }
-        .card-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-            margin-top: 30px;
-        }
-        .card {
-            background-color: #ffffff;
-            border-radius: 15px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            width: 300px;
-            transition: transform 0.2s;
-        }
-        .card:hover {
-            transform: scale(1.02);
-        }
-        .card-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .card-content {
-            font-size: 16px;
-            color: #666;
-        }
-        .icon {
-            width: 24px;
-            height: 24px;
-        }
-        @media screen and (max-width: 600px) {
-            .card-container {
-                flex-direction: column;
-                align-items: center;
-            }
-        }
-    </style>
+<style>
+/* Import cyberpunk font */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+
+/* === MAIN PAGE LIGHT THEME === */
+html, body, .stApp {
+    background: linear-gradient(to right, #fddb92, #d1fdff);
+    background-attachment: fixed;
+    background-size: cover;
+    color: #2c3e50 !important;
+    font-family: 'Segoe UI', sans-serif !important;
+}
+
+/* Highlighted Header */
+.highlight {
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    color: white;
+    padding: 2rem;
+    border-radius: 16px;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+.highlight h1 {
+    font-size: 2.6rem;
+    margin: 0;
+}
+
+/* Data Info Card */
+.data-box {
+    background-color: #ffffff;
+    padding: 1.5rem;
+    border: 2px dashed #1abc9c;
+    border-radius: 12px;
+    text-align: center;
+    color: #2c3e50;
+    margin-top: 1rem;
+}
+/* === CYBERPUNK BORDER FRAME === */
+.glow-frame {
+    position: relative;
+    padding: 2rem;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.7);
+    overflow: hidden;
+    z-index: 1;
+    margin-top: 2rem;
+}
+
+.glow-frame::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #f500ff, #00f7ff, #f500ff, #00f7ff);
+    z-index: -1;
+    background-size: 400% 400%;
+    animation: glitchBorder 6s linear infinite;
+    border-radius: 14px;
+}
+
+@keyframes glitchBorder {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+
+/* === SIDEBAR CYBERPUNK OVERRIDES === */
+section[data-testid="stSidebar"] {
+    background-color: #0a0a12 !important;
+    border-right: 2px solid #222;
+    box-shadow: 4px 0 25px rgba(245, 0, 255, 0.5);
+    padding: 2rem 1rem 2rem 1rem;
+    font-family: 'Orbitron', sans-serif !important;
+}
+
+/* Apply cyberpunk color and fix font size */
+section[data-testid="stSidebar"] * {
+    font-family: 'Orbitron', sans-serif !important;
+    color: #f500ff !important;
+    font-size: 16px !important;
+    text-shadow: 0 0 3px #f500ff;
+}
+
+/* Hyperlink styles in sidebar */
+section[data-testid="stSidebar"] a {
+    color: #00f7ff !important;
+    text-shadow: 0 0 4px #00f7ff;
+}
+section[data-testid="stSidebar"] a:hover {
+    color: #f500ff !important;
+    text-shadow: 0 0 8px #f500ff;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# --- Header ---
-st.title("🎧 AI VOICE INSIGHT SYSTEM")
-st.markdown("### Analyze Gender, Emotion, and More From Voice Using AI")
+
+# Header Banner
+st.markdown("""
+<div class="highlight">
+    <h1>🎙️ Voice Emotion & Gender Analyzer</h1>
+    <p>Upload voice clips and unlock emotional intelligence through sound.</p>
+</div>
+""", unsafe_allow_html=True)
+
+
+# Main Content Section
+st.markdown('<div class="section">', unsafe_allow_html=True)
+
+# Upload Prompt Placeholder
+st.markdown("""
+<div class="voice-box">
+    <p><strong>🎵 Ready to try it out?</strong></p>
+    <p>Upload your <code>.wav</code> audio file in the functional Voice Model section of this app.</p>
+</div>
+""", unsafe_allow_html=True)
 
 
 # --- Load dataset and train models ---
