@@ -5,22 +5,23 @@ import pywt
 import os
 import math
 import mediapipe as mp
-import torch
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-# JAFFE dataset directory (should be in root or provide full path)
+# JAFFE dataset path
 JAFFE_DIR_PATH = "jaffedbase/jaffe/"
 
-# Expression labels and mappings
+# Emotion labels
 expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
 
 # Initialize MediaPipe
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
+
+# ---------- Utility Functions ----------
 
 def read_data(dir_path):
     img_data_list = []
@@ -35,16 +36,16 @@ def read_data(dir_path):
         labels.append(expres_code.index(label))
     return np.array(img_data_list), labels
 
-def angle_line_x_axis(point1, point2):
-    angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
+def angle_line_x_axis(p1, p2):
+    angle_r = math.atan2(p1[1] - p2[1], p1[0] - p2[0])
     return angle_r * 180 / math.pi
 
 def rotate_image(image, angle):
-    image_center = tuple(np.array(image.shape[1::-1]) / 2)
-    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+    center = tuple(np.array(image.shape[1::-1]) / 2)
+    rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
     return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
-def detect_eyes_mediapipe(image):
+def detect_eyes(image):
     rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     results = face_mesh.process(rgb)
     if not results.multi_face_landmarks:
@@ -59,21 +60,21 @@ def detect_eyes_mediapipe(image):
 def preprocess(images):
     normalized_faces = []
     for gray in images:
-        left_eye, right_eye = detect_eyes_mediapipe(gray)
+        left_eye, right_eye = detect_eyes(gray)
         if left_eye is None or right_eye is None:
             continue
         angle = angle_line_x_axis(left_eye, right_eye)
-        rotated_img = rotate_image(gray, angle)
+        rotated = rotate_image(gray, angle)
         D = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
         center = [(left_eye[0] + right_eye[0]) / 2, (left_eye[1] + right_eye[1]) / 2]
-        x, y = int(center[0] - (0.9 * D)), int(center[1] - (0.6 * D))
+        x, y = int(center[0] - 0.9 * D), int(center[1] - 0.6 * D)
         w, h = int(1.8 * D), int(2.2 * D)
-        face_roi = rotated_img[y:y + h, x:x + w]
-        if face_roi.shape[0] == 0 or face_roi.shape[1] == 0:
+        roi = rotated[y:y + h, x:x + w]
+        if roi.shape[0] == 0 or roi.shape[1] == 0:
             continue
-        face_roi = cv2.resize(face_roi, (96, 128))
-        face_roi = cv2.equalizeHist(face_roi)
-        normalized_faces.append(face_roi)
+        roi = cv2.resize(roi, (96, 128))
+        roi = cv2.equalizeHist(roi)
+        normalized_faces.append(roi)
     return normalized_faces
 
 def apply_wavelet_transform(images):
@@ -82,12 +83,14 @@ def apply_wavelet_transform(images):
 def from_2d_to_1d(images):
     return np.array([img.reshape(-1) for img in images])
 
+# ---------- Model Loader ----------
+
 @st.cache_data(show_spinner=True)
 def load_model():
     X, Y = read_data(JAFFE_DIR_PATH)
     cropped_X = preprocess(X)
     if not cropped_X:
-        raise ValueError("No valid faces detected. Please check the preprocessing steps.")
+        raise ValueError("No valid faces detected. Please check preprocessing.")
     LL_images = apply_wavelet_transform(cropped_X)
     X_flat = from_2d_to_1d(LL_images)
     scaler = StandardScaler().fit(X_flat)
@@ -95,14 +98,15 @@ def load_model():
     pca = PCA(n_components=50).fit(X_scaled)
     X_pca = pca.transform(X_scaled)
     X_tr, X_ts, y_tr, y_ts = train_test_split(X_pca, Y, test_size=0.2, random_state=42)
-    model = SVC(C=5, gamma='scale', kernel='rbf', probability=True)
+    model = SVC(C=5, gamma='scale', kernel='rbf')
     model.fit(X_tr, y_tr)
     return model, scaler, pca
 
-# ---------------------- Streamlit UI ----------------------
+# ---------- Streamlit App ----------
+
 st.title("Facial Expression Recognition (JAFFE + MediaPipe)")
-st.sidebar.header("Upload a Facial Image")
-uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=["jpg", "png", "jpeg", "tiff"])
+st.sidebar.header("Upload a Grayscale Facial Image")
+uploaded_file = st.sidebar.file_uploader("Choose an image", type=["jpg", "png", "jpeg", "tiff"])
 
 try:
     model, scaler, pca = load_model()
@@ -114,6 +118,8 @@ if uploaded_file:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     gray_img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
 
+    st.image(gray_img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
+
     processed_faces = preprocess([gray_img])
     if not processed_faces:
         st.warning("Face not detected properly. Try another image.")
@@ -124,9 +130,8 @@ if uploaded_file:
         flat_scaled = scaler.transform(flat)
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
-        pred_prob = model.predict_proba(flat_pca)
-        confidence = np.max(pred_prob) * 100
-        st.success(f"Predicted Expression: **{expres_label[pred[0]]}** ({confidence:.2f}% confidence)")
+        st.success(f"Predicted Emotion: **{expres_label[pred[0]]}**")
+
 
 
 
