@@ -4,7 +4,7 @@ import numpy as np
 import pywt
 import os
 import math
-import face_alignment
+import mediapipe as mp
 import torch
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
@@ -18,8 +18,9 @@ JAFFE_DIR_PATH = "jaffedbase/jaffe/"
 expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
 
-# Load face alignment model
-fa = face_alignment.FaceAlignment('2D', device='cuda' if torch.cuda.is_available() else 'cpu')
+# Initialize MediaPipe FaceMesh for face detection
+mp_face_mesh = mp.solutions.face_mesh
+face_mesh = mp_face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
 def read_data(dir_path):
     img_data_list = []
@@ -43,19 +44,22 @@ def rotate_image(image, angle):
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
-def detect_eyes_fa(gray_img):
-    landmarks = fa.get_landmarks(gray_img)
-    if landmarks is None or len(landmarks) == 0:
+def detect_eyes_mediapipe(image):
+    # Convert image to RGB for MediaPipe
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    results = face_mesh.process(image_rgb)
+    if not results.multi_face_landmarks:
         return None, None
-    lm = landmarks[0]
-    left_eye = np.mean(lm[36:42], axis=0)
-    right_eye = np.mean(lm[42:48], axis=0)
+    face_landmarks = results.multi_face_landmarks[0]
+    # Using landmarks to find the eyes
+    left_eye = (face_landmarks.landmark[33].x, face_landmarks.landmark[133].y)
+    right_eye = (face_landmarks.landmark[362].x, face_landmarks.landmark[263].y)
     return left_eye, right_eye
 
 def preprocess(images):
     normalized_faces = []
     for gray in images:
-        left_eye, right_eye = detect_eyes_fa(gray)
+        left_eye, right_eye = detect_eyes_mediapipe(gray)
         if left_eye is None or right_eye is None:
             continue
         angle = angle_line_x_axis(left_eye, right_eye)
@@ -79,7 +83,7 @@ def from_2d_to_1d(images):
     return np.array([img.reshape(-1) for img in images])
 
 # Streamlit UI
-st.title("Facial Expression Recognition (JAFFE Dataset) - Face Alignment Version")
+st.title("Facial Expression Recognition (JAFFE Dataset) - MediaPipe Version")
 st.sidebar.header("Upload a Facial Image")
 uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=["jpg", "png", "jpeg"])
 
@@ -116,6 +120,7 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
