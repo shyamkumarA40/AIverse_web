@@ -74,7 +74,7 @@ model, scaler, pca = load_model()
 if uploaded_file:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     gray = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-    st.image(gray, caption="Uploaded Image", use_column_width=True, channels="GRAY")
+    st.image(gray, caption="Uploaded Image", use_container_width=True, channels="GRAY")
 
     faces = preprocess([gray])
     if not faces:
