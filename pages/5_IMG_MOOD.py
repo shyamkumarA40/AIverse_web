@@ -53,6 +53,7 @@ def detect_eyes_mediapipe(image):
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     results = face_mesh.process(image_rgb)
     if not results.multi_face_landmarks:
+        print("No faces detected!")
         return None, None
     face_landmarks = results.multi_face_landmarks[0]
     # Using landmarks to find the eyes
@@ -65,6 +66,7 @@ def preprocess(images):
     for gray in images:
         left_eye, right_eye = detect_eyes_mediapipe(gray)
         if left_eye is None or right_eye is None:
+            print("No valid eyes detected in image.")
             continue
         angle = angle_line_x_axis(left_eye, right_eye)
         rotated_img = rotate_image(gray, angle)
@@ -161,6 +163,7 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
