@@ -80,7 +80,10 @@ def apply_wavelet_transform(images):
     return [pywt.dwt2(img, 'bior1.3')[0] for img in images]
 
 def from_2d_to_1d(images):
-    return np.array([img.reshape(-1) for img in images])
+    # Ensure this returns a 2D array (n_samples, n_features)
+    reshaped_images = np.array([img.reshape(-1) for img in images])
+    print(f"Shape of reshaped images: {reshaped_images.shape}")
+    return reshaped_images
 
 # Streamlit UI
 st.title("Facial Expression Recognition (JAFFE Dataset) - MediaPipe Version")
@@ -93,13 +96,26 @@ def load_model():
     cropped_X = preprocess(X)
     LL_images = apply_wavelet_transform(cropped_X)
     X_flat = from_2d_to_1d(LL_images)
+    
+    # Check if X_flat has the right shape
+    if X_flat.size == 0:
+        raise ValueError("X_flat is empty. Something went wrong during preprocessing.")
+    
+    print(f"Shape of X_flat: {X_flat.shape}")
+    
+    # Scaling and PCA
     scaler = StandardScaler().fit(X_flat)
     X_scaled = scaler.transform(X_flat)
     pca = PCA(n_components=35).fit(X_scaled)
     X_pca = pca.transform(X_scaled)
+    
+    # Train test split
     X_tr, X_ts, y_tr, y_ts = train_test_split(X_pca, Y, test_size=0.2, random_state=42)
+    
+    # SVM model
     model = SVC(C=1, gamma=0.01, kernel='linear')
     model.fit(X_tr, y_tr)
+    
     return model, scaler, pca
 
 model, scaler, pca = load_model()
@@ -116,10 +132,15 @@ if uploaded_file is not None:
         face = processed_faces[0]
         LL = apply_wavelet_transform([face])[0]
         flat = from_2d_to_1d([LL])
-        flat_scaled = scaler.transform(flat)
-        flat_pca = pca.transform(flat_scaled)
-        pred = model.predict(flat_pca)
-        st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+        
+        if flat.size == 0:
+            st.warning("Unable to flatten the image properly.")
+        else:
+            flat_scaled = scaler.transform(flat)
+            flat_pca = pca.transform(flat_scaled)
+            pred = model.predict(flat_pca)
+            st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
