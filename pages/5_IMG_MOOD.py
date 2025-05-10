@@ -12,13 +12,18 @@ import pywt
 # Load pre-trained model and preprocessing pipeline
 @st.cache_resource
 def load_model():
-    # Load FER2013 data subset for fitting PCA & Scaler (simulate with dummy if not available)
-    # For demonstration, simulate a minimal PCA/Scaler setup to avoid crashing when no faces are detected
-    dummy_data = np.random.rand(10, 100)
-    scaler = StandardScaler().fit(dummy_data)
-    pca = PCA(n_components=35).fit(scaler.transform(dummy_data))
-    model = SVC().fit(pca.transform(scaler.transform(dummy_data)), np.random.randint(0, 7, 10))
+    try:
+        model = joblib.load("model.pkl")
+        scaler = joblib.load("scaler.pkl")
+        pca = joblib.load("pca.pkl")
+    except:
+        # Fallback for testing (avoid crash if model files not found)
+        dummy_data = np.random.rand(35, 100)
+        scaler = StandardScaler().fit(dummy_data)
+        pca = PCA(n_components=20).fit(scaler.transform(dummy_data))  # <= FIXED
+        model = SVC().fit(pca.transform(scaler.transform(dummy_data)), np.random.randint(0, 7, 35))
     return model, scaler, pca
+
 
 def detect_faces(image_array):
     gray = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
