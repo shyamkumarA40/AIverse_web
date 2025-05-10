@@ -16,11 +16,12 @@ def load_model():
         scaler = joblib.load("scaler.pkl")
         pca = joblib.load("pca.pkl")
     except:
-        dummy_data = np.random.rand(35, 100)
+        dummy_data = np.random.rand(35, 576)  # match the 24x24 LL wavelet size
         scaler = StandardScaler().fit(dummy_data)
-        pca = PCA(n_components=20).fit(scaler.transform(dummy_data))
+        pca = PCA(n_components=35).fit(scaler.transform(dummy_data))
         model = SVC().fit(pca.transform(scaler.transform(dummy_data)), np.random.randint(0, 7, 35))
     return model, scaler, pca
+
 
 # Detect only first face (you can modify this to process all if needed)
 def extract_face(image_array):
