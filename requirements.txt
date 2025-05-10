@@ -12,7 +12,7 @@ flask
 umap-learn
 soundfile
 opencv-python
-dlib
+mediapipe
 imutils
 pywavelets
 joblib
