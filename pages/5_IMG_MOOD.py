@@ -4,11 +4,11 @@ import numpy as np
 import pywt
 import os
 import math
+import dlib
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-import mediapipe as mp
 
 # JAFFE dataset directory
 JAFFE_DIR_PATH = "jaffedbase/jaffe/"
@@ -17,11 +17,10 @@ JAFFE_DIR_PATH = "jaffedbase/jaffe/"
 expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
 
-# Initialize MediaPipe Face Mesh
-mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, refine_landmarks=True)
+# Load Dlib face detector and shape predictor
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
-# Read JAFFE images and labels
 def read_data(dir_path):
     img_data_list = []
     labels = []
@@ -35,34 +34,30 @@ def read_data(dir_path):
         labels.append(expres_code.index(label))
     return np.array(img_data_list), labels
 
-# Angle between two eye centers
+# Eye alignment using Dlib
+def detect_eyes_dlib(gray_img):
+    faces = detector(gray_img)
+    if len(faces) == 0:
+        return None, None
+    face = faces[0]
+    landmarks = predictor(gray_img, face)
+    left_eye = np.mean([[landmarks.part(i).x, landmarks.part(i).y] for i in range(36, 42)], axis=0)
+    right_eye = np.mean([[landmarks.part(i).x, landmarks.part(i).y] for i in range(42, 48)], axis=0)
+    return left_eye, right_eye
+
 def angle_line_x_axis(point1, point2):
     angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
     return angle_r * 180 / math.pi
 
-# Rotate image
 def rotate_image(image, angle):
     image_center = tuple(np.array(image.shape[1::-1]) / 2)
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
-# Eye detection and alignment using MediaPipe
-def detect_eyes_mediapipe(gray_img):
-    rgb_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
-    results = face_mesh.process(rgb_img)
-    if results.multi_face_landmarks:
-        landmarks = results.multi_face_landmarks[0]
-        ih, iw = gray_img.shape
-        left_eye = np.mean([[int(lm.x * iw), int(lm.y * ih)] for i, lm in enumerate(landmarks.landmark) if i in [362, 385, 387]], axis=0).astype(int)
-        right_eye = np.mean([[int(lm.x * iw), int(lm.y * ih)] for i, lm in enumerate(landmarks.landmark) if i in [33, 160, 158]], axis=0).astype(int)
-        return left_eye, right_eye
-    return None, None
-
-# Preprocess and align faces
 def preprocess(images):
     normalized_faces = []
     for gray in images:
-        left_eye, right_eye = detect_eyes_mediapipe(gray)
+        left_eye, right_eye = detect_eyes_dlib(gray)
         if left_eye is None or right_eye is None:
             continue
         angle = angle_line_x_axis(left_eye, right_eye)
@@ -79,15 +74,14 @@ def preprocess(images):
         normalized_faces.append(face_roi)
     return normalized_faces
 
-# Wavelet + flatten
 def apply_wavelet_transform(images):
     return [pywt.dwt2(img, 'bior1.3')[0] for img in images]
 
 def from_2d_to_1d(images):
     return np.array([img.reshape(-1) for img in images])
 
-# Streamlit App
-st.title("Facial Expression Recognition (JAFFE Dataset) - MediaPipe Version")
+# Streamlit UI
+st.title("Facial Expression Recognition (JAFFE Dataset) - Dlib Enhanced")
 st.sidebar.header("Upload a Facial Image")
 uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=["jpg", "png", "jpeg"])
 
@@ -111,7 +105,6 @@ model, scaler, pca = load_model()
 if uploaded_file is not None:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     gray_img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-
     st.image(gray_img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
 
     processed_faces = preprocess([gray_img])
@@ -125,6 +118,7 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
