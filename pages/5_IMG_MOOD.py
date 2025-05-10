@@ -4,7 +4,8 @@ import numpy as np
 import pywt
 import os
 import math
-import dlib
+import face_alignment
+import torch
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
@@ -17,9 +18,8 @@ JAFFE_DIR_PATH = "jaffedbase/jaffe/"
 expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
 
-# Load Dlib face detector and shape predictor
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+# Load face alignment model
+fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, device='cuda' if torch.cuda.is_available() else 'cpu')
 
 def read_data(dir_path):
     img_data_list = []
@@ -34,17 +34,6 @@ def read_data(dir_path):
         labels.append(expres_code.index(label))
     return np.array(img_data_list), labels
 
-# Eye alignment using Dlib
-def detect_eyes_dlib(gray_img):
-    faces = detector(gray_img)
-    if len(faces) == 0:
-        return None, None
-    face = faces[0]
-    landmarks = predictor(gray_img, face)
-    left_eye = np.mean([[landmarks.part(i).x, landmarks.part(i).y] for i in range(36, 42)], axis=0)
-    right_eye = np.mean([[landmarks.part(i).x, landmarks.part(i).y] for i in range(42, 48)], axis=0)
-    return left_eye, right_eye
-
 def angle_line_x_axis(point1, point2):
     angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
     return angle_r * 180 / math.pi
@@ -54,10 +43,19 @@ def rotate_image(image, angle):
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
+def detect_eyes_fa(gray_img):
+    landmarks = fa.get_landmarks(gray_img)
+    if landmarks is None or len(landmarks) == 0:
+        return None, None
+    lm = landmarks[0]
+    left_eye = np.mean(lm[36:42], axis=0)
+    right_eye = np.mean(lm[42:48], axis=0)
+    return left_eye, right_eye
+
 def preprocess(images):
     normalized_faces = []
     for gray in images:
-        left_eye, right_eye = detect_eyes_dlib(gray)
+        left_eye, right_eye = detect_eyes_fa(gray)
         if left_eye is None or right_eye is None:
             continue
         angle = angle_line_x_axis(left_eye, right_eye)
@@ -81,7 +79,7 @@ def from_2d_to_1d(images):
     return np.array([img.reshape(-1) for img in images])
 
 # Streamlit UI
-st.title("Facial Expression Recognition (JAFFE Dataset) - Dlib Enhanced")
+st.title("Facial Expression Recognition (JAFFE Dataset) - Face Alignment Version")
 st.sidebar.header("Upload a Facial Image")
 uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=["jpg", "png", "jpeg"])
 
