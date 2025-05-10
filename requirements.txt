@@ -17,3 +17,5 @@ imutils
 pywavelets
 joblib
 yaml
+PyYAML
+
