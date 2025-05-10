@@ -82,7 +82,7 @@ def preprocess(images):
     for gray in images:
         left_eye, right_eye = detect_eyes(gray)
         if left_eye is None or right_eye is None:
-            continue
+            continue  # Skip if eyes are not detected
         angle = angle_line_x_axis(left_eye, right_eye)
         rotated_img = rotate_image(gray, angle)
         D = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
@@ -91,7 +91,7 @@ def preprocess(images):
         w, h = int(1.8 * D), int(2.2 * D)
         face_roi = rotated_img[y:y + h, x:x + w]
         if face_roi.shape[0] == 0 or face_roi.shape[1] == 0:
-            continue
+            continue  # Skip if face region is invalid
         face_roi = cv2.resize(face_roi, (96, 128))
         face_roi = cv2.equalizeHist(face_roi)
         normalized_faces.append(face_roi)
@@ -114,8 +114,15 @@ uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=[
 def load_model():
     X, Y = read_data(JAFFE_DIR_PATH)
     cropped_X = preprocess(X)
+    
+    if not cropped_X:  # Check if no faces are detected after preprocessing
+        raise ValueError("No valid faces detected in the dataset. Ensure that the images are properly formatted.")
+
     LL_images = apply_wavelet_transform(cropped_X)
     X_flat = from_2d_to_1d(LL_images)
+
+    if X_flat.shape[0] == 0:
+        raise ValueError("No valid data available after preprocessing.")  # Ensure that data is not empty
 
     scaler = StandardScaler().fit(X_flat)
     X_scaled = scaler.transform(X_flat)
@@ -127,7 +134,10 @@ def load_model():
     model.fit(X_tr, y_tr)
     return model, scaler, pca
 
-model, scaler, pca = load_model()
+try:
+    model, scaler, pca = load_model()
+except ValueError as e:
+    st.error(f"Error: {e}")
 
 if uploaded_file is not None:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
@@ -146,4 +156,5 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
