@@ -5,67 +5,64 @@ import pywt
 import os
 import math
 import mediapipe as mp
+import torch
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report
 
-# JAFFE dataset directory (Make sure the path is correct)
+# Dataset path
 JAFFE_DIR_PATH = "jaffedbase/jaffe/"
 
-# Expression labels
+# Expression codes
 expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
 
-# Initialize MediaPipe FaceMesh for face detection
+# MediaPipe FaceMesh
 mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
 
 def read_data(dir_path):
-    """Reads the image data from the directory and assigns labels."""
     img_data_list = []
     labels = []
-    img_list = os.listdir(dir_path)
-    if len(img_list) == 0:
-        raise FileNotFoundError(f"No images found in the directory: {dir_path}")
-    for img in img_list:
+    for img in os.listdir(dir_path):
         input_img = cv2.imread(os.path.join(dir_path, img), cv2.IMREAD_GRAYSCALE)
         if input_img is None:
-            print(f"Skipping invalid image {img}.")
             continue
-        img_data_list.append(input_img)
         label = img[3:5]
-        labels.append(expres_code.index(label))
+        if label in expres_code:
+            labels.append(expres_code.index(label))
+            resized_img = cv2.resize(input_img, (256, 256))
+            img_data_list.append(resized_img)
     return np.array(img_data_list), labels
 
+def angle_line_x_axis(point1, point2):
+    angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
+    return angle_r * 180 / math.pi
+
+def rotate_image(image, angle):
+    image_center = tuple(np.array(image.shape[1::-1]) / 2)
+    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+    return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+
 def detect_eyes_mediapipe(image):
-    """Detects eyes using MediaPipe's FaceMesh."""
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     results = face_mesh.process(image_rgb)
-    
     if not results.multi_face_landmarks:
-        print("No faces detected!")
         return None, None
-    
     face_landmarks = results.multi_face_landmarks[0]
-    left_eye = (face_landmarks.landmark[33].x, face_landmarks.landmark[133].y)
-    right_eye = (face_landmarks.landmark[362].x, face_landmarks.landmark[263].y)
-    
-    # Debugging: Output face landmarks to ensure detection
-    print(f"Detected landmarks: {face_landmarks.landmark}")
-    
+    left_eye = (face_landmarks.landmark[33].x * image.shape[1], face_landmarks.landmark[33].y * image.shape[0])
+    right_eye = (face_landmarks.landmark[263].x * image.shape[1], face_landmarks.landmark[263].y * image.shape[0])
     return left_eye, right_eye
 
 def preprocess(images):
-    """Preprocess the images by detecting eyes and rotating faces."""
     normalized_faces = []
     for gray in images:
-        left_eye, right_eye = detect_eyes_mediapipe(gray)
-        
+        color_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        left_eye, right_eye = detect_eyes_mediapipe(color_img)
         if left_eye is None or right_eye is None:
-            print("No valid eyes detected in image.")
             continue
-        
         angle = angle_line_x_axis(left_eye, right_eye)
         rotated_img = rotate_image(gray, angle)
         D = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
@@ -73,108 +70,76 @@ def preprocess(images):
         x, y = int(center[0] - (0.9 * D)), int(center[1] - (0.6 * D))
         w, h = int(1.8 * D), int(2.2 * D)
         face_roi = rotated_img[y:y + h, x:x + w]
-        
-        # Check if the face region is valid
         if face_roi.shape[0] == 0 or face_roi.shape[1] == 0:
-            print("Invalid face region detected.")
             continue
-        
         face_roi = cv2.resize(face_roi, (96, 128))
         face_roi = cv2.equalizeHist(face_roi)
         normalized_faces.append(face_roi)
-    
-    print(f"Number of valid faces after preprocessing: {len(normalized_faces)}")  # Debugging statement
     return normalized_faces
 
-def angle_line_x_axis(point1, point2):
-    """Calculates the angle of the line between two points on the x-axis."""
-    angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
-    return angle_r * 180 / math.pi
-
-def rotate_image(image, angle):
-    """Rotates the image by the given angle."""
-    image_center = tuple(np.array(image.shape[1::-1]) / 2)
-    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-    return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
-
 def apply_wavelet_transform(images):
-    """Applies a wavelet transform to the images."""
-    transformed = [pywt.dwt2(img, 'bior1.3')[0] for img in images]
-    return transformed
+    return [pywt.dwt2(img, 'bior1.3')[0] for img in images]
 
 def from_2d_to_1d(images):
-    """Reshapes the 2D image data to 1D for machine learning."""
-    reshaped_images = np.array([img.reshape(-1) for img in images])
-    return reshaped_images
-
-# Streamlit UI
-st.title("Facial Expression Recognition (JAFFE Dataset) - MediaPipe Version")
-st.sidebar.header("Upload a Facial Image")
-uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=["jpg", "png", "jpeg"])
+    return np.array([img.reshape(-1) for img in images])
 
 @st.cache_resource
+
 def load_model():
-    """Loads the model and performs training."""
-    try:
-        X, Y = read_data(JAFFE_DIR_PATH)
-    except FileNotFoundError as e:
-        st.error(str(e))
-        return None, None, None
-    
-    if not X.size:
-        raise ValueError("No valid images loaded. Please check the dataset.")
-    
+    X, Y = read_data(JAFFE_DIR_PATH)
     cropped_X = preprocess(X)
-    
     if not cropped_X:
         raise ValueError("No valid faces detected. Please check the preprocessing steps.")
-    
     LL_images = apply_wavelet_transform(cropped_X)
-    
-    if not LL_images:
-        raise ValueError("Wavelet transformation resulted in no valid images.")
-    
     X_flat = from_2d_to_1d(LL_images)
-    
-    if X_flat.size == 0:
-        raise ValueError("X_flat is empty. Something went wrong during preprocessing.")
-    
-    # Scaling and PCA
     scaler = StandardScaler().fit(X_flat)
     X_scaled = scaler.transform(X_flat)
     pca = PCA(n_components=35).fit(X_scaled)
     X_pca = pca.transform(X_scaled)
-    
-    # Train test split
-    X_tr, X_ts, y_tr, y_ts = train_test_split(X_pca, Y, test_size=0.2, random_state=42)
-    
-    # SVM model
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+    for train_idx, test_idx in sss.split(X_pca, Y):
+        X_tr, X_ts = X_pca[train_idx], X_pca[test_idx]
+        y_tr, y_ts = np.array(Y)[train_idx], np.array(Y)[test_idx]
     model = SVC(C=1, gamma=0.01, kernel='linear')
     model.fit(X_tr, y_tr)
-    
+
+    y_pred = model.predict(X_ts)
+    report = classification_report(y_ts, y_pred, target_names=expres_label)
+    print("\nClassification Report:\n", report)
+
     return model, scaler, pca
+
+# Streamlit UI
+st.title("Facial Expression Recognition (JAFFE Dataset) - MediaPipe Version")
+st.sidebar.header("Upload a Facial Image")
+uploaded_file = st.sidebar.file_uploader("Choose a face image", type=["jpg", "jpeg", "png"])
 
 try:
     model, scaler, pca = load_model()
 except Exception as e:
-    st.exception(f"Error loading model: {e}")
+    st.error(f"Error loading model: {e}")
+    st.stop()
 
 if uploaded_file is not None:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    gray_img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-    st.image(gray_img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
+    image_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    gray_img = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    resized_img = cv2.resize(gray_img, (256, 256))
+    st.image(resized_img, caption="Uploaded Image (Grayscale)", channels="GRAY")
 
-    processed_faces = preprocess([gray_img])
+    processed_faces = preprocess([resized_img])
     if not processed_faces:
         st.warning("Face not detected properly. Try another image.")
     else:
         face = processed_faces[0]
+        st.image(face, caption="Preprocessed Face", channels="GRAY")
         LL = apply_wavelet_transform([face])[0]
         flat = from_2d_to_1d([LL])
         flat_scaled = scaler.transform(flat)
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
