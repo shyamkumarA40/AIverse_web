@@ -10,23 +10,21 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-# JAFFE dataset path
+# JAFFE dataset directory
 JAFFE_DIR_PATH = "jaffedbase/jaffe/"
 
-# Emotion labels
+# Expression labels
 expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
 
-# Initialize MediaPipe
+# Initialize MediaPipe FaceMesh
 mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
-
-# ---------- Utility Functions ----------
+face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, min_detection_confidence=0.5)
 
 def read_data(dir_path):
     img_data_list = []
     labels = []
-    img_list = [f for f in os.listdir(dir_path) if f.endswith(".tiff")]
+    img_list = os.listdir(dir_path)
     for img in img_list:
         input_img = cv2.imread(os.path.join(dir_path, img), cv2.IMREAD_GRAYSCALE)
         if input_img is None:
@@ -36,45 +34,43 @@ def read_data(dir_path):
         labels.append(expres_code.index(label))
     return np.array(img_data_list), labels
 
-def angle_line_x_axis(p1, p2):
-    angle_r = math.atan2(p1[1] - p2[1], p1[0] - p2[0])
+def angle_line_x_axis(point1, point2):
+    angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
     return angle_r * 180 / math.pi
 
 def rotate_image(image, angle):
-    center = tuple(np.array(image.shape[1::-1]) / 2)
-    rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
+    image_center = tuple(np.array(image.shape[1::-1]) / 2)
+    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
-def detect_eyes(image):
-    rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-    results = face_mesh.process(rgb)
+def detect_eyes_mediapipe(image):
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    results = face_mesh.process(image_rgb)
     if not results.multi_face_landmarks:
         return None, None
     face_landmarks = results.multi_face_landmarks[0]
-    left_eye = (int(face_landmarks.landmark[33].x * image.shape[1]),
-                int(face_landmarks.landmark[33].y * image.shape[0]))
-    right_eye = (int(face_landmarks.landmark[263].x * image.shape[1]),
-                 int(face_landmarks.landmark[263].y * image.shape[0]))
+    left_eye = (face_landmarks.landmark[33].x * image.shape[1], face_landmarks.landmark[133].y * image.shape[0])
+    right_eye = (face_landmarks.landmark[362].x * image.shape[1], face_landmarks.landmark[263].y * image.shape[0])
     return left_eye, right_eye
 
 def preprocess(images):
     normalized_faces = []
     for gray in images:
-        left_eye, right_eye = detect_eyes(gray)
+        left_eye, right_eye = detect_eyes_mediapipe(gray)
         if left_eye is None or right_eye is None:
             continue
         angle = angle_line_x_axis(left_eye, right_eye)
-        rotated = rotate_image(gray, angle)
+        rotated_img = rotate_image(gray, angle)
         D = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
         center = [(left_eye[0] + right_eye[0]) / 2, (left_eye[1] + right_eye[1]) / 2]
-        x, y = int(center[0] - 0.9 * D), int(center[1] - 0.6 * D)
+        x, y = int(center[0] - (0.9 * D)), int(center[1] - (0.6 * D))
         w, h = int(1.8 * D), int(2.2 * D)
-        roi = rotated[y:y + h, x:x + w]
-        if roi.shape[0] == 0 or roi.shape[1] == 0:
+        face_roi = rotated_img[y:y + h, x:x + w]
+        if face_roi.shape[0] == 0 or face_roi.shape[1] == 0:
             continue
-        roi = cv2.resize(roi, (96, 128))
-        roi = cv2.equalizeHist(roi)
-        normalized_faces.append(roi)
+        face_roi = cv2.resize(face_roi, (96, 128))
+        face_roi = cv2.equalizeHist(face_roi)
+        normalized_faces.append(face_roi)
     return normalized_faces
 
 def apply_wavelet_transform(images):
@@ -83,41 +79,42 @@ def apply_wavelet_transform(images):
 def from_2d_to_1d(images):
     return np.array([img.reshape(-1) for img in images])
 
-# ---------- Model Loader ----------
+st.title("Facial Expression Recognition (JAFFE Dataset) - MediaPipe Version")
+st.sidebar.header("Upload a Facial Image")
+uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=["jpg", "png", "jpeg"])
 
-@st.cache_data(show_spinner=True)
+@st.cache_resource
 def load_model():
-    X, Y = read_data(JAFFE_DIR_PATH)
-    cropped_X = preprocess(X)
-    if not cropped_X:
-        raise ValueError("No valid faces detected. Please check preprocessing.")
-    LL_images = apply_wavelet_transform(cropped_X)
-    X_flat = from_2d_to_1d(LL_images)
-    scaler = StandardScaler().fit(X_flat)
-    X_scaled = scaler.transform(X_flat)
-    pca = PCA(n_components=50).fit(X_scaled)
-    X_pca = pca.transform(X_scaled)
-    X_tr, X_ts, y_tr, y_ts = train_test_split(X_pca, Y, test_size=0.2, random_state=42)
-    model = SVC(C=5, gamma='scale', kernel='rbf')
-    model.fit(X_tr, y_tr)
-    return model, scaler, pca
+    try:
+        X, Y = read_data(JAFFE_DIR_PATH)
+        cropped_X = preprocess(X)
+        if not cropped_X:
+            raise ValueError("No valid faces detected. Please check the preprocessing steps.")
 
-# ---------- Streamlit App ----------
+        LL_images = apply_wavelet_transform(cropped_X)
+        X_flat = from_2d_to_1d(LL_images)
+        scaler = StandardScaler().fit(X_flat)
+        X_scaled = scaler.transform(X_flat)
+        pca = PCA(n_components=25).fit(X_scaled)
+        X_pca = pca.transform(X_scaled)
+        X_tr, X_ts, y_tr, y_ts = train_test_split(X_pca, Y, test_size=0.2, random_state=42)
 
-st.title("Facial Expression Recognition (JAFFE + MediaPipe)")
-st.sidebar.header("Upload a Grayscale Facial Image")
-uploaded_file = st.sidebar.file_uploader("Choose an image", type=["jpg", "png", "jpeg", "tiff"])
+        model = SVC(C=1, gamma=0.01, kernel='linear', class_weight='balanced', probability=True)
+        model.fit(X_tr, y_tr)
 
-try:
-    model, scaler, pca = load_model()
-except Exception as e:
-    st.error(f"Error loading model: {str(e)}")
-    st.stop()
+        acc = model.score(X_ts, y_ts)
+        st.sidebar.info(f"Model Accuracy: {acc:.2f}")
 
-if uploaded_file:
+        return model, scaler, pca
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None, None, None
+
+model, scaler, pca = load_model()
+
+if uploaded_file is not None and model is not None:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     gray_img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-
     st.image(gray_img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
 
     processed_faces = preprocess([gray_img])
@@ -129,8 +126,15 @@ if uploaded_file:
         flat = from_2d_to_1d([LL])
         flat_scaled = scaler.transform(flat)
         flat_pca = pca.transform(flat_scaled)
-        pred = model.predict(flat_pca)
-        st.success(f"Predicted Emotion: **{expres_label[pred[0]]}**")
+        proba = model.predict_proba(flat_pca)
+        pred = np.argmax(proba)
+
+        st.success(f"Predicted Expression: {expres_label[pred]}")
+        st.subheader("Prediction Probabilities")
+        for label, p in zip(expres_label, proba[0]):
+            st.write(f"{label}: {p:.2f}")
+
+
 
 
 
