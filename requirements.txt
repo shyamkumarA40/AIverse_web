@@ -21,7 +21,6 @@ openai-whisper
 
 # Image & video processing
 opencv-python-headless>=4.6
-# headless version to avoid GUI dependency
 mediapipe>=0.10
 imutils>=0.5
 PyWavelets>=1.4
@@ -37,6 +36,7 @@ face-alignment
 # Misc utilities
 pandasai>=1.3
 PyYAML>=6.0
+
 
 
 
