@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MetaMask Login</title>
+</head>
+<body style="font-family: sans-serif; text-align: center; padding-top: 100px;">
+  <h1>🦊 Login with MetaMask</h1>
+  <button onclick="loginWithMetaMask()" style="font-size: 18px; padding: 10px 20px;">Connect Wallet</button>
+  <p id="status"></p>
+
+  <script>
+    async function loginWithMetaMask() {
+      try {
+        if (!window.ethereum) {
+          document.getElementById("status").innerText = "MetaMask is not installed.";
+          return;
+        }
+
+        const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+        const wallet = accounts[0];
+
+        const message = "Please sign this message to login to AIverse.";
+        const signature = await ethereum.request({
+          method: "personal_sign",
+          params: [message, wallet],
+        });
+
+        // Send wallet to backend
+        const response = await fetch("/wallet-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wallet: wallet })
+        });
+
+        const result = await response.json();
+        if (result.status === "success") {
+          document.getElementById("status").innerText = "Wallet connected successfully. Redirecting...";
+          setTimeout(() => {
+            window.location.href = result.redirect;
+          }, 1000);
+        } else {
+          document.getElementById("status").innerText = "Login failed: " + result.error;
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById("status").innerText = "Error during login.";
+      }
+    }
+  </script>
+</body>
+</html>
