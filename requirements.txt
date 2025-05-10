@@ -1,0 +1,14 @@
+streamlit
+pandas
+numpy
+seaborn
+matplotlib
+scikit-learn
+xgboost
+pandasai
+librosa
+whisper
+flask
+umap-learn
+soundfile
+
