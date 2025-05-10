@@ -21,20 +21,34 @@ expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
+def read_data(dir_path):
+    """Reads the image data from the directory and assigns labels."""
+    img_data_list = []
+    labels = []
+    img_list = os.listdir(dir_path)
+    for img in img_list:
+        input_img = cv2.imread(os.path.join(dir_path, img), cv2.IMREAD_GRAYSCALE)
+        if input_img is None:
+            continue
+        img_data_list.append(input_img)
+        label = img[3:5]
+        labels.append(expres_code.index(label))
+    return np.array(img_data_list), labels
+
 def detect_eyes_mediapipe(image):
-    # Convert image to RGB for MediaPipe
+    """Detects eyes using MediaPipe's FaceMesh."""
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     results = face_mesh.process(image_rgb)
     if not results.multi_face_landmarks:
         print("No faces detected!")
         return None, None
     face_landmarks = results.multi_face_landmarks[0]
-    # Using landmarks to find the eyes
     left_eye = (face_landmarks.landmark[33].x, face_landmarks.landmark[133].y)
     right_eye = (face_landmarks.landmark[362].x, face_landmarks.landmark[263].y)
     return left_eye, right_eye
 
 def preprocess(images):
+    """Preprocess the images by detecting eyes and rotating faces."""
     normalized_faces = []
     for gray in images:
         left_eye, right_eye = detect_eyes_mediapipe(gray)
@@ -49,7 +63,7 @@ def preprocess(images):
         w, h = int(1.8 * D), int(2.2 * D)
         face_roi = rotated_img[y:y + h, x:x + w]
         
-        # Debugging: Check if the face region is valid
+        # Check if the face region is valid
         if face_roi.shape[0] == 0 or face_roi.shape[1] == 0:
             print("Invalid face region detected.")
             continue
@@ -62,19 +76,23 @@ def preprocess(images):
     return normalized_faces
 
 def angle_line_x_axis(point1, point2):
+    """Calculates the angle of the line between two points on the x-axis."""
     angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
     return angle_r * 180 / math.pi
 
 def rotate_image(image, angle):
+    """Rotates the image by the given angle."""
     image_center = tuple(np.array(image.shape[1::-1]) / 2)
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
 def apply_wavelet_transform(images):
+    """Applies a wavelet transform to the images."""
     transformed = [pywt.dwt2(img, 'bior1.3')[0] for img in images]
     return transformed
 
 def from_2d_to_1d(images):
+    """Reshapes the 2D image data to 1D for machine learning."""
     reshaped_images = np.array([img.reshape(-1) for img in images])
     return reshaped_images
 
@@ -85,6 +103,7 @@ uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=[
 
 @st.cache_resource
 def load_model():
+    """Loads the model and performs training."""
     X, Y = read_data(JAFFE_DIR_PATH)
     
     if not X.size:
@@ -141,6 +160,7 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
