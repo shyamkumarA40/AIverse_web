@@ -8,33 +8,31 @@ import mediapipe as mp
 import torch
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report
 
-# Dataset path
+# JAFFE dataset directory (should be in root or provide full path)
 JAFFE_DIR_PATH = "jaffedbase/jaffe/"
 
-# Expression codes
+# Expression labels and mappings
 expres_code = ['NE', 'HA', 'AN', 'DI', 'FE', 'SA', 'SU']
 expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise']
 
-# MediaPipe FaceMesh
+# Initialize MediaPipe
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
 
 def read_data(dir_path):
     img_data_list = []
     labels = []
-    for img in os.listdir(dir_path):
+    img_list = [f for f in os.listdir(dir_path) if f.endswith(".tiff")]
+    for img in img_list:
         input_img = cv2.imread(os.path.join(dir_path, img), cv2.IMREAD_GRAYSCALE)
         if input_img is None:
             continue
+        img_data_list.append(input_img)
         label = img[3:5]
-        if label in expres_code:
-            labels.append(expres_code.index(label))
-            resized_img = cv2.resize(input_img, (256, 256))
-            img_data_list.append(resized_img)
+        labels.append(expres_code.index(label))
     return np.array(img_data_list), labels
 
 def angle_line_x_axis(point1, point2):
@@ -47,24 +45,21 @@ def rotate_image(image, angle):
     return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
 def detect_eyes_mediapipe(image):
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    results = face_mesh.process(image_rgb)
+    rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    results = face_mesh.process(rgb)
     if not results.multi_face_landmarks:
         return None, None
-
     face_landmarks = results.multi_face_landmarks[0]
-    left_eye = (face_landmarks.landmark[33].x * image.shape[1],
-                face_landmarks.landmark[33].y * image.shape[0])
-    right_eye = (face_landmarks.landmark[263].x * image.shape[1],
-                 face_landmarks.landmark[263].y * image.shape[0])
+    left_eye = (int(face_landmarks.landmark[33].x * image.shape[1]),
+                int(face_landmarks.landmark[33].y * image.shape[0]))
+    right_eye = (int(face_landmarks.landmark[263].x * image.shape[1]),
+                 int(face_landmarks.landmark[263].y * image.shape[0]))
     return left_eye, right_eye
-
 
 def preprocess(images):
     normalized_faces = []
     for gray in images:
-        color_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-        left_eye, right_eye = detect_eyes_mediapipe(color_img)
+        left_eye, right_eye = detect_eyes_mediapipe(gray)
         if left_eye is None or right_eye is None:
             continue
         angle = angle_line_x_axis(left_eye, right_eye)
@@ -87,8 +82,7 @@ def apply_wavelet_transform(images):
 def from_2d_to_1d(images):
     return np.array([img.reshape(-1) for img in images])
 
-@st.cache_resource
-
+@st.cache_data(show_spinner=True)
 def load_model():
     X, Y = read_data(JAFFE_DIR_PATH)
     cropped_X = preprocess(X)
@@ -98,51 +92,42 @@ def load_model():
     X_flat = from_2d_to_1d(LL_images)
     scaler = StandardScaler().fit(X_flat)
     X_scaled = scaler.transform(X_flat)
-    pca = PCA(n_components=35).fit(X_scaled)
+    pca = PCA(n_components=50).fit(X_scaled)
     X_pca = pca.transform(X_scaled)
-    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-    for train_idx, test_idx in sss.split(X_pca, Y):
-        X_tr, X_ts = X_pca[train_idx], X_pca[test_idx]
-        y_tr, y_ts = np.array(Y)[train_idx], np.array(Y)[test_idx]
-    model = SVC(C=1, gamma=0.01, kernel='linear')
+    X_tr, X_ts, y_tr, y_ts = train_test_split(X_pca, Y, test_size=0.2, random_state=42)
+    model = SVC(C=5, gamma='scale', kernel='rbf', probability=True)
     model.fit(X_tr, y_tr)
-
-    y_pred = model.predict(X_ts)
-    report = classification_report(y_ts, y_pred, target_names=expres_label)
-    print("\nClassification Report:\n", report)
-
     return model, scaler, pca
 
-# Streamlit UI
-st.title("Facial Expression Recognition (JAFFE Dataset) - MediaPipe Version")
+# ---------------------- Streamlit UI ----------------------
+st.title("Facial Expression Recognition (JAFFE + MediaPipe)")
 st.sidebar.header("Upload a Facial Image")
-uploaded_file = st.sidebar.file_uploader("Choose a face image", type=["jpg", "jpeg", "png"])
+uploaded_file = st.sidebar.file_uploader("Choose a grayscale face image", type=["jpg", "png", "jpeg", "tiff"])
 
 try:
     model, scaler, pca = load_model()
 except Exception as e:
-    st.error(f"Error loading model: {e}")
+    st.error(f"Error loading model: {str(e)}")
     st.stop()
 
-if uploaded_file is not None:
+if uploaded_file:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    image_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    gray_img = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
-    resized_img = cv2.resize(gray_img, (256, 256))
-    st.image(resized_img, caption="Uploaded Image (Grayscale)", channels="GRAY")
+    gray_img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
 
-    processed_faces = preprocess([resized_img])
+    processed_faces = preprocess([gray_img])
     if not processed_faces:
         st.warning("Face not detected properly. Try another image.")
     else:
         face = processed_faces[0]
-        st.image(face, caption="Preprocessed Face", channels="GRAY")
         LL = apply_wavelet_transform([face])[0]
         flat = from_2d_to_1d([LL])
         flat_scaled = scaler.transform(flat)
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
-        st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+        pred_prob = model.predict_proba(flat_pca)
+        confidence = np.max(pred_prob) * 100
+        st.success(f"Predicted Expression: **{expres_label[pred[0]]}** ({confidence:.2f}% confidence)")
+
 
 
 
