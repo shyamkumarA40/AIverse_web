@@ -11,4 +11,8 @@ whisper
 flask
 umap-learn
 soundfile
-
+opencv-python
+dlib
+imutils
+pywavelets
+joblib
