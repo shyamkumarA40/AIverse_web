@@ -19,7 +19,7 @@ soundfile>=0.12
 openai-whisper
 
 # Image & video processing (only headless OpenCV)
-opencv-python-headless>=4.6
+opencv-python
 mediapipe>=0.10
 imutils>=0.5
 PyWavelets>=1.4
