@@ -332,7 +332,7 @@ html, body, .stApp {
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.image("assets/data_model_image.png", caption="Train and Visualize", use_container_width=True)
+        st.image("assets/data_model_image.jpg", caption="Train and Visualize", use_container_width=True)
     with col2:
         st.markdown("""
         **Core Features:**
@@ -359,7 +359,7 @@ html, body, .stApp {
         - Great for voice UX testing and emotion-aware apps
         """)
     with col2:
-        st.image("assets/voice_model_image.png", caption="Understand Emotions Through Sound", use_container_width=True)
+        st.image("assets/voice_model_image.jpg", caption="Understand Emotions Through Sound", use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     # Section 3: IMG MOOD AI
@@ -368,7 +368,7 @@ html, body, .stApp {
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.image("assets/image_mood_ai.png", caption="Facial Mood Recognition", use_container_width=True)
+        st.image("assets/image_mood_ai.jpg", caption="Facial Mood Recognition", use_container_width=True)
     with col2:
         st.markdown("""
         **Use Case:**
