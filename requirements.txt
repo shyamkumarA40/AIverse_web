@@ -1,8 +1,8 @@
-# Core app
+# Streamlit app
 streamlit>=1.37.0
 flask>=2.3
 
-# Data science & ML
+# Core ML
 pandas>=1.5
 numpy>=1.23
 scikit-learn>=1.2
@@ -14,28 +14,29 @@ joblib>=1.2
 matplotlib>=3.6
 seaborn>=0.12
 
-# Audio processing
+# Audio
 librosa>=0.10
 soundfile>=0.12
 openai-whisper
 
-# Image & video processing
-opencv-python-headless>=4.6  # Use headless to avoid GUI dependencies
-mediapipe==0.10.9            # Match with current face_mesh version
+# Computer vision
+opencv-python-headless>=4.6
+mediapipe==0.10.14   # ✅ Compatible with Python <= 3.11
 imutils>=0.5
 PyWavelets>=1.4
 scikit-image
 imageio
 imageio-ffmpeg
 
-# Deep learning & face processing
+# Face/emotion detection
 torch
 torchvision
 face-alignment
 
-# Misc utilities
+# Utilities
 pandasai>=1.3
 PyYAML>=6.0
+
 
 
 
