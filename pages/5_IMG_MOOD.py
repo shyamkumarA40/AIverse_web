@@ -1,10 +1,10 @@
 import streamlit as st
-import cv2
 import numpy as np
 import pywt
 import os
 import math
 import mediapipe as mp
+import cv2
 import torch
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
@@ -23,6 +23,7 @@ expres_label = ['Neutral', 'Happy', 'Angry', 'Disgust', 'Fear', 'Sad', 'Surprise
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
 
+# Read JAFFE images
 def read_data(dir_path):
     img_data_list = []
     labels = []
@@ -37,15 +38,18 @@ def read_data(dir_path):
             img_data_list.append(resized_img)
     return np.array(img_data_list), labels
 
+# Compute angle between eyes
 def angle_line_x_axis(point1, point2):
     angle_r = math.atan2(point1[1] - point2[1], point1[0] - point2[0])
     return angle_r * 180 / math.pi
 
+# Rotate image to align eyes horizontally
 def rotate_image(image, angle):
     image_center = tuple(np.array(image.shape[1::-1]) / 2)
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     return cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
 
+# Detect eye coordinates using MediaPipe
 def detect_eyes_mediapipe(image):
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     results = face_mesh.process(image_rgb)
@@ -56,6 +60,7 @@ def detect_eyes_mediapipe(image):
     right_eye = (face_landmarks.landmark[263].x * image.shape[1], face_landmarks.landmark[263].y * image.shape[0])
     return left_eye, right_eye
 
+# Preprocess all faces (crop, align, normalize)
 def preprocess(images):
     normalized_faces = []
     for gray in images:
@@ -77,14 +82,16 @@ def preprocess(images):
         normalized_faces.append(face_roi)
     return normalized_faces
 
+# Wavelet transform
 def apply_wavelet_transform(images):
     return [pywt.dwt2(img, 'bior1.3')[0] for img in images]
 
+# Flatten images
 def from_2d_to_1d(images):
     return np.array([img.reshape(-1) for img in images])
 
+# Load and train model
 @st.cache_resource
-
 def load_model():
     X, Y = read_data(JAFFE_DIR_PATH)
     cropped_X = preprocess(X)
@@ -103,29 +110,32 @@ def load_model():
     model = SVC(C=1, gamma=0.01, kernel='linear')
     model.fit(X_tr, y_tr)
 
+    # Optional: print classification report to console
     y_pred = model.predict(X_ts)
     report = classification_report(y_ts, y_pred, target_names=expres_label)
     print("\nClassification Report:\n", report)
 
     return model, scaler, pca
 
-# Streamlit UI
-st.title("Facial Expression Recognition (JAFFE Dataset) - MediaPipe Version")
-st.sidebar.header("Upload a Facial Image")
+# Streamlit App UI
+st.title("Facial Expression Recognition (JAFFE + MediaPipe)")
+st.sidebar.header("Upload an Image")
 uploaded_file = st.sidebar.file_uploader("Choose a face image", type=["jpg", "jpeg", "png"])
 
+# Load model
 try:
     model, scaler, pca = load_model()
 except Exception as e:
     st.error(f"Error loading model: {e}")
     st.stop()
 
+# Predict if user uploads image
 if uploaded_file is not None:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     image_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     gray_img = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     resized_img = cv2.resize(gray_img, (256, 256))
-    st.image(resized_img, caption="Uploaded Image (Grayscale)", channels="GRAY")
+    st.image(resized_img, caption="Uploaded Image", channels="GRAY")
 
     processed_faces = preprocess([resized_img])
     if not processed_faces:
@@ -139,6 +149,7 @@ if uploaded_file is not None:
         flat_pca = pca.transform(flat_scaled)
         pred = model.predict(flat_pca)
         st.success(f"Predicted Expression: {expres_label[pred[0]]}")
+
 
 
 
